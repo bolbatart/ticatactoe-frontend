@@ -8,11 +8,13 @@ function App() {
   const [isNext, setIsNext] = useState('crosses');
 
   useEffect(() => {
+    // requesting the last game
     axios
       .get('http://localhost:5000/')
       .then((res) => {
         if (res.data) {
           setGameId(res.data._id);
+          setActionLog((actionLog) => [...actionLog, 'New game...']);
           res.data.moves.forEach((move) => {
             fillBoard(move);
             setActionLog((actionLog) => [
@@ -20,6 +22,7 @@ function App() {
               move.who + ' made move to field ' + move.fieldNr,
             ]);
           });
+          checkForWinner(res.data);
         }
       })
       .catch((err) => {
@@ -27,27 +30,22 @@ function App() {
       });
   }, []);
 
-  function fillBoard(move) {
-    if (move.who === 'crosses') {
-      setSquares((squares) => [...squares, (squares[move.fieldNr] = 'X')]);
-      setIsNext('noughts');
-    } else if (move.who === 'noughts') {
-      setSquares((squares) => [...squares, (squares[move.fieldNr] = 'O')]);
-      setIsNext('crosses');
-    }
-  }
-
-  function renderSquare(i) {
-    return (
-      <button className="square" onClick={() => makeMove(i)}>
-        {squares[i]}
-      </button>
-    );
+  function startNewGame() {
+    axios
+      .get('http://localhost:5000/start')
+      .then((res) => {
+        setSquares(Array(9).fill(null));
+        setGameId(res.data._id);
+        setActionLog((actionLog) => [...actionLog, 'New game...']);
+      })
+      .catch((err) => {
+        setActionLog([...actionLog, err.response.data]);
+      });
   }
 
   function makeMove(fieldNr) {
     axios
-      .put(
+      .post(
         'http://localhost:5000/move/' + isNext,
         { _id: gameId, fieldNr },
         {
@@ -79,23 +77,11 @@ function App() {
       });
   }
 
-  function startNewGame() {
-    axios
-      .get('http://localhost:5000/start')
-      .then((res) => {
-        setSquares(Array(9).fill(null));
-        setGameId(res.data._id);
-        setActionLog((actionLog) => [...actionLog, 'New game...']);
-      })
-      .catch((err) => {
-        console.log(err);
-      });
-  }
-
   function getAllActions() {
     axios
       .get('http://localhost:5000/all-actions')
       .then((res) => {
+        setActionLog([]);
         res.data.forEach((game) => {
           setActionLog((actionLog) => [...actionLog, 'New game...']);
           game.moves.forEach((move) => {
@@ -104,17 +90,38 @@ function App() {
               move.who + ' made move to field ' + (move.fieldNr + 1),
             ]);
           });
-          if (res.data.winner) {
-            setActionLog((actionLog) => [
-              ...actionLog,
-              'Winner is ' + res.data.winner,
-            ]);
-          } else if (res.data.draw) {
-            setActionLog((actionLog) => [...actionLog, res.data.draw]);
-          }
+          checkForWinner(game);
         });
       })
-      .catch((err) => {});
+      .catch((err) => {
+        setActionLog([...actionLog, err.response.data]);
+      });
+  }
+
+  function fillBoard(move) {
+    if (move.who === 'crosses') {
+      setSquares((squares) => [...squares, (squares[move.fieldNr] = 'X')]);
+      setIsNext('noughts');
+    } else if (move.who === 'noughts') {
+      setSquares((squares) => [...squares, (squares[move.fieldNr] = 'O')]);
+      setIsNext('crosses');
+    }
+  }
+
+  function renderSquare(i) {
+    return (
+      <button className="square" onClick={() => makeMove(i)}>
+        {squares[i]}
+      </button>
+    );
+  }
+
+  function checkForWinner(game) {
+    if (game.winner) {
+      setActionLog((actionLog) => [...actionLog, 'Winner is ' + game.winner]);
+    } else if (game.draw) {
+      setActionLog((actionLog) => [...actionLog, game.draw]);
+    }
   }
 
   return (
